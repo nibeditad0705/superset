@@ -639,18 +639,45 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
         prophet_logger.setLevel(logging.NOTSET)
     except ModuleNotFoundError:
         raise QueryObjectValidationError(_("`fbprophet` package not installed"))
-    model = Prophet(
-        interval_width=confidence_interval,
-        yearly_seasonality=yearly_seasonality,
-        weekly_seasonality=weekly_seasonality,
-        daily_seasonality=daily_seasonality,
-    )
-    if df["ds"].dt.tz:
-        df["ds"] = df["ds"].dt.tz_convert(None)
-    model.fit(df)
-    future = model.make_future_dataframe(periods=periods, freq=freq)
-    forecast = model.predict(future)[["ds", "yhat", "yhat_lower", "yhat_upper"]]
-    return forecast.join(df.set_index("ds"), on="ds").set_index(["ds"])
+    
+    from statsmodels.tsa.arima.model import ARIMA
+    df.columns =['Date','Value']
+    df.set_index(['Date'],inplace=True)
+    model = ARIMA(df['Value'], order=(5,1,1))
+    #model = Prophet(
+        #interval_width=confidence_interval,
+        #yearly_seasonality=yearly_seasonality,
+        #weekly_seasonality=weekly_seasonality,
+        #daily_seasonality=daily_seasonality,
+    #)
+    
+    model_fit = model.fit()
+    from pandas import datetime
+    fr = model_fit.get_forecast(steps=periods).summary_frame()
+    
+    #make future dataframe using prophet
+    
+    dff= df.copy()
+    dff.columns =['ds','y']
+    m = Prophet()
+    m.fit(dff)
+
+    future = m.make_future_dataframe(periods=periods, freq=freq)
+    dat = future['ds'].values.tolist()
+    fr['ds']=dat
+    fr['ds']=pd.to_datetime(fr['ds'])
+    forecast = fr.copy()
+    #if df["ds"].dt.tz:
+        #df["ds"] = df["ds"].dt.tz_convert(None)
+    #model.fit(df)
+    #future = model.make_future_dataframe(periods=periods, freq=freq)
+    #forecast = model.predict(future)[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+    #return forecast.join(df.set_index("ds"), on="ds").set_index(["ds"])
+    forecast.drop(['mean_se'],inplace=True)
+    forecast = forecast[['ds','mean','mean_ci_lower','mean_ci_upper']]
+    forecast.columns =["ds", "yhat", "yhat_lower", "yhat_upper"]
+    forecast.set_index('ds',inplace=True)
+    return forecast
 
 
 def prophet(  # pylint: disable=too-many-arguments
