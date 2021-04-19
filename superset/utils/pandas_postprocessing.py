@@ -24,7 +24,7 @@ import numpy as np
 from flask_babel import gettext as _
 from geopy.point import Point
 from pandas import DataFrame, NamedAgg, Series, Timestamp
-
+import pandas as pd
 from superset.exceptions import QueryObjectValidationError
 from superset.utils.core import (
     DTTM_ALIAS,
