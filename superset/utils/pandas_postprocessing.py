@@ -644,6 +644,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     
     from statsmodels.tsa.arima.model import ARIMA
     df.columns =['Date','Value']
+    ll =df['Date'].values.tolist()
     df.set_index(['Date'],inplace=True)
     model = ARIMA(df['Value'], order=(5,1,1))
     #model = Prophet(
@@ -663,7 +664,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     #dff.columns =['ds','y']
     df.sort_values('Date',inplace=True)
 
-    ll =df['Date'].values.tolist()
+    
     didx = pd.date_range(start=ll[-1],periods=periods+1,freq=freq)
     future = pd.DataFrame(didx)
     future.columns =['ds']
