@@ -680,7 +680,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     #future = model.make_future_dataframe(periods=periods, freq=freq)
     #forecast = model.predict(future)[["ds", "yhat", "yhat_lower", "yhat_upper"]]
     #return forecast.join(df.set_index("ds"), on="ds").set_index(["ds"])
-    forecast.drop(['mean_se'],inplace=True)
+    forecast.drop(['mean_se'],axis=1,inplace=True)
     forecast = forecast[['ds','mean','mean_ci_lower','mean_ci_upper']]
     forecast.columns =["ds", "yhat", "yhat_lower", "yhat_upper"]
     forecast.set_index('ds',inplace=True)
