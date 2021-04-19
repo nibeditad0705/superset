@@ -647,7 +647,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     ll =df['Date'].values.tolist()
     #df.set_index(['Date'],inplace=True)
     data = pd.Series(df.Value.values, index=df['Date']) 
-    model = ARIMA(df['Value'], order=(5,1,1))
+    model = ARIMA(data, order=(5,1,1))
     #model = Prophet(
         #interval_width=confidence_interval,
         #yearly_seasonality=yearly_seasonality,
