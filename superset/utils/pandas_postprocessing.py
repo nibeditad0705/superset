@@ -642,6 +642,8 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     except ModuleNotFoundError:
         raise QueryObjectValidationError(_("Statsmodels package not installed"))
     
+    dff=df.copy()
+    dff.columns =['ds','y']
     from statsmodels.tsa.arima.model import ARIMA
     df.columns =['Date','Value']
     df['Value']=df['Value'].astype(float)
@@ -686,8 +688,10 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     forecast.drop(['mean_se'],axis=1,inplace=True)
     forecast = forecast[['ds','mean','mean_ci_lower','mean_ci_upper']]
     forecast.columns =["ds", "yhat", "yhat_lower", "yhat_upper"]
-    forecast.set_index('ds',inplace=True)
-    return forecast
+    dff['ds']=pd.to_datetime(dff['ds'],utc=True)
+    forecast['ds']=pd.to_datetime(forecast['ds'],utc=True)
+    return  forecast.join(dff.set_index("ds"), on="ds").set_index(['ds'])
+
 
 
 
