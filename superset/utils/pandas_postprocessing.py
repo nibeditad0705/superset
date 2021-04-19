@@ -563,7 +563,7 @@ def contribution(
     ] = PostProcessingContributionOrientation.COLUMN,
     columns: Optional[List[str]] = None,
     rename_columns: Optional[List[str]] = None,
-) -> DataFrame:
+    ) -> DataFrame:
     """
     Calculate cell contibution to row/column total for numeric columns.
     Non-numeric columns will be kept untouched.
@@ -607,7 +607,7 @@ def contribution(
 
 def _prophet_parse_seasonality(
     input_value: Optional[Union[bool, int]]
-) -> Union[bool, str, int]:
+    ) -> Union[bool, str, int]:
     if input_value is None:
         return "auto"
     if isinstance(input_value, bool):
@@ -618,6 +618,8 @@ def _prophet_parse_seasonality(
         return input_value
 
 
+
+
 def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     df: DataFrame,
     confidence_interval: float,
@@ -626,7 +628,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     daily_seasonality: Union[bool, str, int],
     periods: int,
     freq: str,
-) -> DataFrame:
+    ) -> DataFrame:
     """
     Fit a prophet model and return a DataFrame with predicted results.
     """
@@ -634,11 +636,11 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
         prophet_logger = logging.getLogger("fbprophet.plot")
 
         prophet_logger.setLevel(logging.CRITICAL)
-        from fbprophet import Prophet  # pylint: disable=import-error
+        from statsmodels.tsa.arima.model import ARIMA  # pylint: disable=import-error
 
         prophet_logger.setLevel(logging.NOTSET)
     except ModuleNotFoundError:
-        raise QueryObjectValidationError(_("`fbprophet` package not installed"))
+        raise QueryObjectValidationError(_("Statsmodels package not installed"))
     
     from statsmodels.tsa.arima.model import ARIMA
     df.columns =['Date','Value']
@@ -657,14 +659,18 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     
     #make future dataframe using prophet
     
-    dff= df.copy()
-    dff.columns =['ds','y']
-    m = Prophet()
-    m.fit(dff)
+    #dff= df.copy()
+    #dff.columns =['ds','y']
+    df.sort_values('Date',inplace=True)
 
-    future = m.make_future_dataframe(periods=periods, freq=freq)
-    dat = future['ds'].values.tolist()
-    fr['ds']=dat
+    ll =df['Date'].values.tolist()
+    didx = pd.date_range(start=ll[-1],periods=periods+1,freq=freq)
+    future = pd.DataFrame(didx)
+    future.columns =['ds']
+    future = future.iloc[1:,:]
+    #future = m.make_future_dataframe(periods=periods, freq=freq)
+    #dat = future['ds'].values.tolist()
+    fr['ds']=future['ds'].values.tolist()
     fr['ds']=pd.to_datetime(fr['ds'])
     forecast = fr.copy()
     #if df["ds"].dt.tz:
@@ -680,6 +686,8 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     return forecast
 
 
+
+
 def prophet(  # pylint: disable=too-many-arguments
     df: DataFrame,
     time_grain: str,
@@ -688,18 +696,15 @@ def prophet(  # pylint: disable=too-many-arguments
     yearly_seasonality: Optional[Union[bool, int]] = None,
     weekly_seasonality: Optional[Union[bool, int]] = None,
     daily_seasonality: Optional[Union[bool, int]] = None,
-) -> DataFrame:
+    ) -> DataFrame:
     """
     Add forecasts to each series in a timeseries dataframe, along with confidence
     intervals for the prediction. For each series, the operation creates three
     new columns with the column name suffixed with the following values:
-
     - `__yhat`: the forecast for the given date
     - `__yhat_lower`: the lower bound of the forecast for the given date
     - `__yhat_upper`: the upper bound of the forecast for the given date
     - `__yhat_upper`: the upper bound of the forecast for the given date
-
-
     :param df: DataFrame containing all-numeric data (temporal column ignored)
     :param time_grain: Time grain used to specify time period increments in prediction
     :param periods: Time periods (in units of `time_grain`) to predict into the future
