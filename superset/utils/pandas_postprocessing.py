@@ -627,7 +627,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     weekly_seasonality,
     daily_seasonality,
     periods,
-    freq
+    freq, time_grain
     ):
     """
     Fit a prophet model and return a DataFrame with predicted results.
@@ -688,7 +688,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     n_features= 1
     generator = TimeseriesGenerator(scaled_data, scaled_data, length=n_input, batch_size=1)
 
-    lstm_model.fit_generator(generator,epochs=confidence_interval)
+    lstm_model.fit_generator(generator,epochs=confidence_interval*10)
 
     lstm_predictions_scaled = list()
 
@@ -786,7 +786,7 @@ def prophet(  # pylint: disable=too-many-arguments
             weekly_seasonality=_prophet_parse_seasonality(weekly_seasonality),
             daily_seasonality=_prophet_parse_seasonality(daily_seasonality),
             periods=periods,
-            freq=freq,
+            freq=freq,time_grain = time_grain
         )
         new_columns = [
             f"{column}__yhat",
