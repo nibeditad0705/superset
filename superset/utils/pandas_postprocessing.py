@@ -621,17 +621,18 @@ def _prophet_parse_seasonality(
 
 
 def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
-    df: DataFrame,
-    confidence_interval: float,
-    yearly_seasonality: Union[bool, str, int],
-    weekly_seasonality: Union[bool, str, int],
-    daily_seasonality: Union[bool, str, int],
-    periods: int,
-    freq: str,
-    ) -> DataFrame:
+    df,
+    confidence_interval,
+    yearly_seasonality,
+    weekly_seasonality,
+    daily_seasonality,
+    periods,
+    freq
+    ):
     """
     Fit a prophet model and return a DataFrame with predicted results.
     """
+    
     try:
         prophet_logger = logging.getLogger("fbprophet.plot")
 
@@ -642,58 +643,86 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     except ModuleNotFoundError:
         raise QueryObjectValidationError(_("Statsmodels package not installed"))
     
-    dff=df.copy()
-    dff.columns =['ds','y']
-    from statsmodels.tsa.arima.model import ARIMA
+
+    import numpy as np
+    import pandas as pd
+    import os
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+    from statsmodels.graphics.tsaplots import plot_acf,plot_pacf 
+    from statsmodels.tsa.seasonal import seasonal_decompose
+    from pandas import datetime
+
     df.columns =['Date','Value']
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    dff=df.copy()
     df['Value']=df['Value'].astype(float)
     ll =df['Date'].values.tolist()
     #df.set_index(['Date'],inplace=True)
-   
-    data = pd.Series(df.Value.values, index=df['Date']) 
-    model = ARIMA(data, order=(5,1,1))
-    #model = Prophet(
-        #interval_width=confidence_interval,
-        #yearly_seasonality=yearly_seasonality,
-        #weekly_seasonality=weekly_seasonality,
-        #daily_seasonality=daily_seasonality,
-    #)
-    
-    model_fit = model.fit()
-    from pandas import datetime
-    fr = model_fit.get_forecast(steps=periods).summary_frame()
-    
-    #make future dataframe using prophet
-    
-    #dff= df.copy()
-    #dff.columns =['ds','y']
-    df.sort_values('Date',inplace=True)
+    df.set_index('Date', inplace=True)
+    df.index = pd.to_datetime(df.index)
+    freq = PROPHET_TIME_GRAIN_MAP[time_grain]
+    dataset = df.resample(freq).mean()
+
+
+    from sklearn.preprocessing import MinMaxScaler
+    scaler = MinMaxScaler()
+    scaler.fit(dataset)
+    scaled_data = scaler.transform(dataset)
+
+
+    from keras.models import Sequential
+    from keras.layers import Dense
+    from keras.layers import LSTM
+    n_input=int(len(scaled_data)/2) #means how many previous values needs to be taken for predicting next
+    n_features= 1 #for univariate
+    lstm_model = Sequential()
+    lstm_model.add(LSTM(200, activation='relu', input_shape=(n_input, n_features)))
+    lstm_model.add(Dense(1))
+    lstm_model.compile(optimizer='adam', loss='mse')
+    lstm_model.summary()
+
+    from keras.preprocessing.sequence import TimeseriesGenerator
 
     
+    n_features= 1
+    generator = TimeseriesGenerator(scaled_data, scaled_data, length=n_input, batch_size=1)
+
+    lstm_model.fit_generator(generator,epochs=confidence_interval)
+
+    lstm_predictions_scaled = list()
+
+    batch = scaled_data[-n_input:]
+    current_batch = batch.reshape((1, n_input, n_features))
+    ## len(test_data) will be np. of forcasting periods
+    for i in range(periods):   
+            lstm_pred = lstm_model.predict(current_batch)[0]
+
+            lstm_predictions_scaled.append(lstm_pred) 
+            current_batch = np.append(current_batch[:,1:,:],[[lstm_pred]],axis=1)
+
+    lstm_predictions = scaler.inverse_transform(lstm_predictions_scaled)
+    fr=pd.DataFrame(lstm_predictions)
+    fr.columns=['yhat']
+
+    df.sort_values('Date',inplace=True)
+
     didx = pd.date_range(start=ll[-1],periods=periods+1,freq=freq)
     future = pd.DataFrame(didx)
     future.columns =['ds']
     future = future.iloc[1:,:]
-    #future = m.make_future_dataframe(periods=periods, freq=freq)
-    #dat = future['ds'].values.tolist()
+
     fr['ds']=future['ds'].values.tolist()
     fr['ds']=pd.to_datetime(fr['ds'])
     forecast = fr.copy()
-    #if df["ds"].dt.tz:
-        #df["ds"] = df["ds"].dt.tz_convert(None)
-    #model.fit(df)
-    #future = model.make_future_dataframe(periods=periods, freq=freq)
-    #forecast = model.predict(future)[["ds", "yhat", "yhat_lower", "yhat_upper"]]
-    #return forecast.join(df.set_index("ds"), on="ds").set_index(["ds"])
-    forecast.drop(['mean_se'],axis=1,inplace=True)
-    forecast = forecast[['ds','mean','mean_ci_lower','mean_ci_upper']]
-    forecast.columns =["ds", "yhat", "yhat_lower", "yhat_upper"]
-    dff['ds']=pd.to_datetime(dff['ds'],utc=True)
-    forecast['ds']=pd.to_datetime(forecast['ds'],utc=True)
-    return  forecast.join(dff.set_index("ds"), on="ds").set_index(['ds'])
 
+    confidence=0.8
+    forecast['yhat_upper']=forecast['yhat'] + forecast['yhat']*(1-confidence)/2
+    forecast['yhat_lower']=forecast['yhat'] - forecast['yhat']*(1-confidence)/2
 
-
+    forecast=forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+    dff.columns =['ds','y']
+    return forecast.join(dff.set_index("ds"), on="ds").set_index(['ds'])
 
 
 def prophet(  # pylint: disable=too-many-arguments
