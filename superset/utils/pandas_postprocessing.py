@@ -688,7 +688,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     n_features= 1
     generator = TimeseriesGenerator(scaled_data, scaled_data, length=n_input, batch_size=1)
 
-    lstm_model.fit_generator(generator,epochs=confidence_interval*10)
+    lstm_model.fit_generator(generator,epochs=int(confidence_interval)*10)
 
     lstm_predictions_scaled = list()
 
@@ -707,7 +707,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
 
     df.sort_values('Date',inplace=True)
 
-    didx = pd.date_range(start=ll[-1],periods=periods+1,freq=freq)
+    didx = pd.date_range(start=ll[-1],periods=int(periods)+1,freq=freq)
     future = pd.DataFrame(didx)
     future.columns =['ds']
     future = future.iloc[1:,:]
