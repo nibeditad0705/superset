@@ -651,6 +651,11 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     from statsmodels.graphics.tsaplots import plot_acf,plot_pacf 
     from statsmodels.tsa.seasonal import seasonal_decompose
     from pandas import datetime
+    from numpy import array
+    from keras.models import Sequential
+    from keras.layers import LSTM
+    from keras.layers import Dense
+    from keras.layers import Bidirectional
 
     df.columns =['Date','Value']
     df['Date'] = pd.to_datetime(df['Date'])
