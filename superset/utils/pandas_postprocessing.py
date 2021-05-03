@@ -648,6 +648,15 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     from statsmodels.graphics.tsaplots import plot_acf,plot_pacf 
     from statsmodels.tsa.seasonal import seasonal_decompose
     from pandas import datetime
+    
+    from numpy import array
+    from keras.models import Sequential
+    from keras.layers import LSTM
+    from keras.layers import Dense
+    from keras.layers import Flatten
+    from keras.layers import TimeDistributed
+    from keras.layers.convolutional import Conv1D
+    from keras.layers.convolutional import MaxPooling1D
 
     df.columns =['Date','Value']
     df['Date'] = pd.to_datetime(df['Date'])
@@ -667,12 +676,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     scaler.fit(dataset)
     scaled_data = scaler.transform(dataset)
    
-    from keras.models import Sequential
-    from keras.layers import LSTM
-    from keras.layers import Dense
-    from keras.layers import Flatten
-    from keras.layers import ConvLSTM2D
-
+    
     def split_sequence(sequence, n_steps):
       X, y = list(), list()
       for i in range(len(sequence)):
@@ -695,15 +699,19 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     
     X = X.reshape((X.shape[0], n_seq, 1, n_steps, n_features))
    
-    lstm_model = Sequential()
-    lstm_model.add(ConvLSTM2D(filters=64, kernel_size=(1,2), activation='relu', input_shape=(n_seq, 1, n_steps, n_features)))
-    lstm_model.add(Flatten())
-    lstm_model.add(Dense(1))
-    lstm_model.compile(optimizer='adam', loss='mse')
-
+    # define model
+    model = Sequential()
+    model.add(TimeDistributed(Conv1D(filters=64, kernel_size=1, activation='relu'), input_shape=(None, n_steps, n_features)))
+    model.add(TimeDistributed(MaxPooling1D(pool_size=2)))
+    model.add(TimeDistributed(Flatten()))
+    model.add(LSTM(50, activation='relu'))
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mse')
   
+    model.fit(X, y, epochs=int(confidence_interval)*10,verbose=0)
+
     
-    lstm_model.fit(X, y, epochs=int(confidence_interval)*10, verbose=0)
+    
 
     n_input=n_steps
     sz=n_input
@@ -745,8 +753,8 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     dff.columns =['ds','y']
     dff['ds'] = pd.to_datetime(dff['ds'], utc = True)
     forecast['ds'] = pd.to_datetime(forecast['ds'], utc = True)
-
     return forecast.join(dff.set_index("ds"), on="ds").set_index(['ds'])
+    
     
 
 def prophet(  # pylint: disable=too-many-arguments
