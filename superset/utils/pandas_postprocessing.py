@@ -617,9 +617,6 @@ def _prophet_parse_seasonality(
     except ValueError:
         return input_value
 
-
-
-
 def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     df,
     confidence_interval,
@@ -627,12 +624,12 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     weekly_seasonality,
     daily_seasonality,
     periods,
-    freq, time_grain
+    freq,time_grain
     ):
     """
     Fit a prophet model and return a DataFrame with predicted results.
     """
-    
+    """  
     try:
         prophet_logger = logging.getLogger("fbprophet.plot")
 
@@ -642,7 +639,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
         prophet_logger.setLevel(logging.NOTSET)
     except ModuleNotFoundError:
         raise QueryObjectValidationError(_("Statsmodels package not installed"))
-    
+    """
 
     import numpy as np
     import pandas as pd
@@ -651,15 +648,10 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     from statsmodels.graphics.tsaplots import plot_acf,plot_pacf 
     from statsmodels.tsa.seasonal import seasonal_decompose
     from pandas import datetime
-    from numpy import array
-    from keras.models import Sequential
-    from keras.layers import LSTM
-    from keras.layers import Dense
-    from keras.layers import Bidirectional
 
     df.columns =['Date','Value']
     df['Date'] = pd.to_datetime(df['Date'])
-
+  
     dff=df.copy()
     df['Value']=df['Value'].astype(float)
     ll =df['Date'].values.tolist()
@@ -668,53 +660,75 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     df.index = pd.to_datetime(df.index)
     freq = PROPHET_TIME_GRAIN_MAP[time_grain]
     dataset = df.resample(freq).mean()
-
+    
 
     from sklearn.preprocessing import MinMaxScaler
     scaler = MinMaxScaler()
     scaler.fit(dataset)
     scaled_data = scaler.transform(dataset)
-
-
+   
     from keras.models import Sequential
-    from keras.layers import Dense
     from keras.layers import LSTM
-    n_input=int(len(scaled_data)/2) #means how many previous values needs to be taken for predicting next
-    n_features= 1 #for univariate
-    
+    from keras.layers import Dense
+    from keras.layers import Flatten
+    from keras.layers import ConvLSTM2D
 
+    def split_sequence(sequence, n_steps):
+      X, y = list(), list()
+      for i in range(len(sequence)):
+        # find the end of this pattern
+        end_ix = i + n_steps
+        # check if we are beyond the sequence
+        if end_ix > len(sequence)-1:
+          break
+        # gather input and output parts of the pattern
+        seq_x, seq_y = sequence[i:end_ix], sequence[end_ix]
+        X.append(seq_x)
+        y.append(seq_y)
+      return np.array(X), np.array(y)
+    n_steps = int(len(scaled_data)/2)
+    # split into samples
+    X, y = split_sequence(scaled_data, n_steps)
+    # reshape from [samples, timesteps] into [samples, timesteps, rows, columns, features]
+    n_features = 1
+    n_seq = 1
+    
+    X = X.reshape((X.shape[0], n_seq, 1, n_steps, n_features))
+   
     lstm_model = Sequential()
-    lstm_model.add(Bidirectional(LSTM(50, activation='relu',return_sequences=True), input_shape=(n_input, n_features)))
-    lstm_model.add(Bidirectional(LSTM(50, activation='relu')))
+    lstm_model.add(ConvLSTM2D(filters=64, kernel_size=(1,2), activation='relu', input_shape=(n_seq, 1, n_steps, n_features)))
+    lstm_model.add(Flatten())
     lstm_model.add(Dense(1))
     lstm_model.compile(optimizer='adam', loss='mse')
 
-    from keras.preprocessing.sequence import TimeseriesGenerator
-
+  
     
-    n_features= 1
-    generator = TimeseriesGenerator(scaled_data, scaled_data, length=n_input, batch_size=1)
+    lstm_model.fit(X, y, epochs=int(confidence_interval)*10, verbose=0)
 
-    lstm_model.fit_generator(generator,epochs=int(confidence_interval)*10)
-
+    n_input=n_steps
+    sz=n_input
     lstm_predictions_scaled = list()
 
     batch = scaled_data[-n_input:]
-    current_batch = batch.reshape((1, n_input, n_features))
-    ## len(test_data) will be np. of forcasting periods
-    for i in range(int(periods)):   
-            lstm_pred = lstm_model.predict(current_batch)[0]
-
-            lstm_predictions_scaled.append(lstm_pred) 
-            current_batch = np.append(current_batch[:,1:,:],[[lstm_pred]],axis=1)
-
+    
+    current_batch = batch.reshape((1, n_seq, 1, n_steps, n_features))
+    
+    for i in range((periods)):   
+        lstm_pred = lstm_model.predict(current_batch)[0]
+        
+        lstm_predictions_scaled.append(lstm_pred) 
+       
+        cb=current_batch.reshape(sz)
+        current_batch = np.append(cb[1:],lstm_pred,axis=0)
+        
+        current_batch = current_batch.reshape((1, n_seq, 1, n_steps, n_features))
     lstm_predictions = scaler.inverse_transform(lstm_predictions_scaled)
     fr=pd.DataFrame(lstm_predictions)
     fr.columns=['yhat']
 
     df.sort_values('Date',inplace=True)
 
-    didx = pd.date_range(start=ll[-1],periods=int(periods)+1,freq=freq)
+    didx = pd.date_range(start=ll[-1],periods=periods+1,freq=freq)
     future = pd.DataFrame(didx)
     future.columns =['ds']
     future = future.iloc[1:,:]
@@ -729,10 +743,8 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
 
     forecast=forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
     dff.columns =['ds','y']
-    dff['ds']=pd.to_datetime(dff['ds'],utc=True)
-    forecast['ds']=pd.to_datetime(forecast['ds'],utc=True)
     return forecast.join(dff.set_index("ds"), on="ds").set_index(['ds'])
-
+    
 
 def prophet(  # pylint: disable=too-many-arguments
     df: DataFrame,
