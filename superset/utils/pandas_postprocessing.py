@@ -722,7 +722,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     current_batch = batch.reshape((1, n_seq, 1, n_steps, n_features))
     
     for i in range((periods)):   
-        lstm_pred = lstm_model.predict(current_batch)[0]
+        lstm_pred = model.predict(current_batch)[0]
         
         lstm_predictions_scaled.append(lstm_pred) 
        
