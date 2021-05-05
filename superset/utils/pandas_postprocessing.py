@@ -685,7 +685,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     n_features= 1
     generator = TimeseriesGenerator(scaled_data, scaled_data, length=n_input, batch_size=1)
 
-    lstm_model.fit_generator(generator,epochs=confidence_interval)
+    lstm_model.fit_generator(generator,epochs=int(confidence_interval*10))
 
     lstm_predictions_scaled = list()
 
