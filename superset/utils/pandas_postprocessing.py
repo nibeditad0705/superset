@@ -624,7 +624,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     weekly_seasonality,
     daily_seasonality,
     periods,
-    freq
+    freq, time_grain
     ):
     """
     Fit a prophet model and return a DataFrame with predicted results.
