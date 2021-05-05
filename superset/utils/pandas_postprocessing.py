@@ -624,7 +624,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     weekly_seasonality,
     daily_seasonality,
     periods,
-    freq, time_grain
+    freq
     ):
     """
     Fit a prophet model and return a DataFrame with predicted results.
@@ -673,11 +673,11 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     from keras.layers import LSTM
     n_input=int(len(scaled_data)/2) #means how many previous values needs to be taken for predicting next
     n_features= 1 #for univariate
+    
     lstm_model = Sequential()
-    lstm_model.add(LSTM(200, activation='relu', input_shape=(n_input, n_features)))
+    lstm_model.add(Bidirectional(LSTM(200, activation='relu'), input_shape=(n_steps, n_features)))
     lstm_model.add(Dense(1))
     lstm_model.compile(optimizer='adam', loss='mse')
-    lstm_model.summary()
 
     from keras.preprocessing.sequence import TimeseriesGenerator
 
@@ -722,6 +722,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     dff['ds'] = pd.to_datetime(dff['ds'], utc = True)
     forecast['ds'] = pd.to_datetime(forecast['ds'], utc = True)
     return forecast.join(dff.set_index("ds"), on="ds").set_index(['ds'])
+
 
     
     
