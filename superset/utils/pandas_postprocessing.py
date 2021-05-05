@@ -640,6 +640,13 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     except ModuleNotFoundError:
         raise QueryObjectValidationError(_("Statsmodels package not installed"))
     
+    
+    
+    from numpy import array
+    from keras.models import Sequential
+    from keras.layers import LSTM
+    from keras.layers import Dense
+    from keras.layers import Bidirectional
 
     import numpy as np
     import pandas as pd
@@ -722,6 +729,7 @@ def _prophet_fit_and_predict(  # pylint: disable=too-many-arguments
     dff['ds'] = pd.to_datetime(dff['ds'], utc = True)
     forecast['ds'] = pd.to_datetime(forecast['ds'], utc = True)
     return forecast.join(dff.set_index("ds"), on="ds").set_index(['ds'])
+
 
 
     
